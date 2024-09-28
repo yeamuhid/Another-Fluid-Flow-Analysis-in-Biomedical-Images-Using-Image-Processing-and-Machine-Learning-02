@@ -1,0 +1,73 @@
+import cv2
+import numpy as np
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import matplotlib.pyplot as plt
+
+# Load a biomedical image (e.g., a sequence of frames showing fluid flow)
+def load_image(image_path):
+    return cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+
+# Preprocess image: apply filters to enhance fluid flow regions
+def preprocess_image(image):
+    # Apply Gaussian blur to reduce noise
+    blurred = cv2.GaussianBlur(image, (5, 5), 0)
+    # Use Canny edge detection to highlight fluid boundaries
+    edges = cv2.Canny(blurred, threshold1=50, threshold2=150)
+    return edges
+
+# Segment the fluid flow region using thresholding or contour detection
+def segment_fluid(image):
+    ret, thresh = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Draw contours for visualization
+    segmented = np.zeros_like(image)
+    cv2.drawContours(segmented, contours, -1, (255), 1)
+    return segmented, contours
+
+# Feature extraction: Compute basic statistics from the segmented fluid regions
+def extract_features(contours):
+    features = []
+    for contour in contours:
+        # Compute area and perimeter of each contour
+        area = cv2.contourArea(contour)
+        perimeter = cv2.arcLength(contour, True)
+        features.append([area, perimeter])
+    return np.array(features)
+
+# Machine learning model: Support Vector Classifier for flow classification
+def train_classifier(features, labels):
+    X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.3, random_state=42)
+    classifier = SVC(kernel='linear')
+    classifier.fit(X_train, y_train)
+    y_pred = classifier.predict(X_test)
+    print(f"Accuracy: {accuracy_score(y_test, y_pred)}")
+    return classifier
+
+# Load and process the image
+image_path = 'biomedical_image.jpg'
+image = load_image(image_path)
+edges = preprocess_image(image)
+
+# Segment the fluid flow and extract features
+segmented, contours = segment_fluid(edges)
+features = extract_features(contours)
+
+# Assuming binary classification (e.g., normal vs abnormal flow)
+labels = np.array([0, 1] * (len(features) // 2))  # Placeholder: replace with actual labels
+
+# Train the ML model
+classifier = train_classifier(features, labels)
+
+# Display the original and processed image
+plt.subplot(1, 2, 1)
+plt.title("Original Image")
+plt.imshow(image, cmap='gray')
+
+plt.subplot(1, 2, 2)
+plt.title("Segmented Fluid Flow")
+plt.imshow(segmented, cmap='gray')
+
+plt.show()
